@@ -1,0 +1,12 @@
+{
+  "UserMappings": [
+    {
+      "SourceUser": "john.doe@source-company.com",
+      "TargetUser": "john.doe@target-company.com"
+    },
+    {
+      "SourceUser": "jane.smith@source-company.com",
+      "TargetUser": "jane.smith@target-company.com"
+    }
+  ]
+}

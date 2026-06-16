@@ -1,0 +1,98 @@
+{
+  "Serilog": {
+    "MinimumLevel": "Information",
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/migration-.log",
+          "rollingInterval": "Day"
+        }
+      }
+    ]
+  },
+  "MigrationTools": {
+    "Version": "16.0",
+    "CommonTools": {
+      "StringManipulatorTool": {
+        "Enabled": true,
+        "MaxStringLength": 1000000,
+        "Manipulators": []
+      },
+      "TfsUserMappingTool": {
+        "Enabled": false,
+        "UserMappingFile": "userMapping.json"
+      }
+    },
+    "Endpoints": {
+      "Source": {
+        "EndpointType": "TfsTeamProjectEndpoint",
+        "Organisation": "https://dev.azure.com/SOURCE-ORG/",
+        "Project": "SOURCE-PROJECT",
+        "Authentication": {
+          "AuthenticationMode": "AccessToken",
+          "AccessToken": "SOURCE_PAT_TOKEN_HERE"
+        },
+        "ReflectedWorkItemIdField": "Custom.ReflectedWorkItemId",
+        "AllowCrossProjectLinking": false,
+        "Language": "English"
+      },
+      "Target": {
+        "EndpointType": "TfsTeamProjectEndpoint",
+        "Organisation": "https://dev.azure.com/TARGET-ORG/",
+        "Project": "TARGET-PROJECT",
+        "Authentication": {
+          "AuthenticationMode": "AccessToken",
+          "AccessToken": "TARGET_PAT_TOKEN_HERE"
+        },
+        "ReflectedWorkItemIdField": "Custom.ReflectedWorkItemId",
+        "AllowCrossProjectLinking": false,
+        "Language": "English"
+      }
+    },
+    "Processors": [
+      {
+        "ProcessorType": "TfsAreaAndIterationProcessor",
+        "Enabled": true,
+        "SourceName": "Source",
+        "TargetName": "Target",
+        "PrefixProjectToNodes": false,
+        "NodeBasePaths": []
+      },
+      {
+        "ProcessorType": "WorkItemMigrationProcessor",
+        "Enabled": true,
+        "SourceName": "Source",
+        "TargetName": "Target",
+
+        "WIQLQuery": "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] NOT IN ('Test Suite', 'Test Plan', 'Shared Steps', 'Shared Parameter', 'Feedback Request') ORDER BY [System.ChangedDate] desc",
+
+        "ReplayRevisions": true,
+        "CollapseRevisions": false,
+        "PrefixProjectToNodes": false,
+
+        "FilterWorkItemsThatAlreadyExistInTarget": true,
+
+        "UpdateCreatedDate": true,
+        "UpdateCreatedBy": true,
+
+        "SkipRevisionWithInvalidIterationPath": true,
+        "SkipRevisionWithInvalidAreaPath": true,
+
+        "MaxGracefulFailures": 0,
+
+        "WorkItemIDs": null,
+        "NodeBasePaths": [],
+        "WorkItemTypeDefinitions": {
+          "Epic": "Epic",
+          "Feature": "Feature",
+          "User Story": "User Story",
+          "Task": "Task",
+          "Bug": "Bug",
+          "Issue": "Issue"
+        }
+      }
+    ]
+  }
+}
