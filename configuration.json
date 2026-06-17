@@ -1,98 +1,93 @@
 {
+  "$schema": "https://devopsmigration.io/schema/configuration.schema.json",
   "Serilog": {
-    "MinimumLevel": "Information",
-    "WriteTo": [
-      { "Name": "Console" },
-      {
-        "Name": "File",
-        "Args": {
-          "path": "logs/migration-.log",
-          "rollingInterval": "Day"
-        }
-      }
-    ]
+    "MinimumLevel": "Information"
   },
   "MigrationTools": {
-    "Version": "16.0",
-    "CommonTools": {
-      "StringManipulatorTool": {
-        "Enabled": true,
-        "MaxStringLength": 1000000,
-        "Manipulators": []
-      },
-      "TfsUserMappingTool": {
-        "Enabled": false,
-        "UserMappingFile": "userMapping.json"
-      }
-    },
+    "Version": "16.3",
     "Endpoints": {
       "Source": {
         "EndpointType": "TfsTeamProjectEndpoint",
-        "Organisation": "https://dev.azure.com/SOURCE-ORG/",
-        "Project": "SOURCE-PROJECT",
+        "Collection": "https://dev.azure.com/Kriss365-Dev/",
+        "Project": "ADO-Migration-Test",
         "Authentication": {
           "AuthenticationMode": "AccessToken",
-          "AccessToken": "SOURCE_PAT_TOKEN_HERE"
+          "NetworkCredentials": {
+            "Domain": "",
+            "UserName": "",
+            "Password": ""
+          },
+          "AccessToken": "set up your token here"
         },
         "ReflectedWorkItemIdField": "Custom.ReflectedWorkItemId",
-        "AllowCrossProjectLinking": false,
-        "Language": "English"
+        "LanguageMaps": {
+          "AreaPath": "Area",
+          "IterationPath": "Iteration"
+        },
+        "ProductVersion": "Cloud"
       },
       "Target": {
         "EndpointType": "TfsTeamProjectEndpoint",
-        "Organisation": "https://dev.azure.com/TARGET-ORG/",
-        "Project": "TARGET-PROJECT",
+        "Collection": "https://dev.azure.com/Kriss365-Dev/",
+        "Project": "ADO-Migration-Test",
         "Authentication": {
           "AuthenticationMode": "AccessToken",
-          "AccessToken": "TARGET_PAT_TOKEN_HERE"
+          "NetworkCredentials": {
+            "Domain": "",
+            "UserName": "",
+            "Password": ""
+          },
+          "AccessToken": "set up your token here"
         },
         "ReflectedWorkItemIdField": "Custom.ReflectedWorkItemId",
-        "AllowCrossProjectLinking": false,
-        "Language": "English"
+        "LanguageMaps": {
+          "AreaPath": "Area",
+          "IterationPath": "Iteration"
+        },
+        "ProductVersion": "Cloud"
       }
     },
     "Processors": [
       {
-        "ProcessorType": "TfsAreaAndIterationProcessor",
+        "ProcessorType": "TfsWorkItemMigrationProcessor",
         "Enabled": true,
-        "SourceName": "Source",
-        "TargetName": "Target",
-        "PrefixProjectToNodes": false,
-        "NodeBasePaths": []
-      },
-      {
-        "ProcessorType": "WorkItemMigrationProcessor",
-        "Enabled": true,
-        "SourceName": "Source",
-        "TargetName": "Target",
-
-        "WIQLQuery": "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.WorkItemType] NOT IN ('Test Suite', 'Test Plan', 'Shared Steps', 'Shared Parameter', 'Feedback Request') ORDER BY [System.ChangedDate] desc",
-
-        "ReplayRevisions": true,
-        "CollapseRevisions": false,
-        "PrefixProjectToNodes": false,
-
+        "WIQLQuery": "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @TeamProject AND [System.WorkItemType] IN ('User Story', 'Feature') ORDER BY [System.ChangedDate] desc",
+        "FixHtmlAttachmentLinks": true,
+        "WorkItemCreateRetryLimit": 5,
         "FilterWorkItemsThatAlreadyExistInTarget": true,
-
+        "GenerateMigrationComment": true,
         "UpdateCreatedDate": true,
         "UpdateCreatedBy": true,
-
+        "ReplayRevisions": true,
         "SkipRevisionWithInvalidIterationPath": true,
         "SkipRevisionWithInvalidAreaPath": true,
-
         "MaxGracefulFailures": 0,
-
-        "WorkItemIDs": null,
-        "NodeBasePaths": [],
-        "WorkItemTypeDefinitions": {
-          "Epic": "Epic",
-          "Feature": "Feature",
-          "User Story": "User Story",
-          "Task": "Task",
-          "Bug": "Bug",
-          "Issue": "Issue"
-        }
+        "SourceName": "Source",
+        "TargetName": "Target"
       }
-    ]
+    ],
+    "CommonTools": {
+      "TfsWorkItemTypeValidatorTool": {
+        "Enabled": true,
+        "IncludeWorkItemTypes": [
+          "User Story",
+          "User Story New",
+          "Feature",
+          "Feature New"
+        ],
+        "ExcludeDefaultWorkItemTypes": false
+      },
+      "WorkItemTypeMappingTool": {
+        "Enabled": true,
+        "Mappings": {
+          "User Story": "User Story New",
+          "Feature": "Feature New"
+        }
+      },
+      "FieldMappingTool": {
+        "Enabled": false,
+        "FieldMaps": []
+      }
+    }
   }
 }

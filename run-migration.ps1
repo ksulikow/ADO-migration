@@ -2,7 +2,7 @@
 .SYNOPSIS
     ADO Backlog Migration - Setup and Run Script
     Uses: nkdAgility Azure DevOps Migration Tools (v16+)
-    Docs: https://nkdagility.com/learn/azure-devops-migration-tools/
+    Docs: https://devopsmigration.io/
 
 .DESCRIPTION
     Step 1: Install the migration tool
@@ -12,7 +12,7 @@
 
 .NOTES
     PREREQUISITES:
-    - .NET 8 SDK installed  (https://dotnet.microsoft.com/download)
+    - winget (Windows Package Manager) available
     - PAT tokens for both source and target ADO organisations
       Required scopes: Work Items (Read & Write), Project and Team (Read)
     - "ReflectedWorkItemId" custom field added to both process templates (see below)
@@ -30,32 +30,27 @@ $ErrorActionPreference = "Stop"
 # ── 0. Prerequisites check ────────────────────────────────────────────────────
 Write-Host "`n=== ADO Migration Tool ===" -ForegroundColor Cyan
 
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Error ".NET SDK not found. Install from https://dotnet.microsoft.com/download"
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Error "winget not found. Install Windows Package Manager from https://aka.ms/getwinget"
     exit 1
 }
 
-$dotnetVersion = dotnet --version
-Write-Host ".NET SDK: $dotnetVersion" -ForegroundColor Green
-
 # ── 1. Install the migration tool ─────────────────────────────────────────────
 if (-not $SkipInstall) {
-    Write-Host "`nInstalling nkdAgility Azure DevOps Migration Tools..." -ForegroundColor Yellow
-    dotnet tool install -g nkdAgility.AzureDevOps.MigrationTools --version "*-*" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Tool already installed or updating..." -ForegroundColor Gray
-        dotnet tool update -g nkdAgility.AzureDevOps.MigrationTools --version "*-*" 2>$null
+    Write-Host "`nInstalling nkdAgility Azure DevOps Migration Tools via winget..." -ForegroundColor Yellow
+    Write-Host "NOTE: Do not run this as an elevated (admin) prompt." -ForegroundColor Gray
+    winget install nkdAgility.AzureDevOpsMigrationTools --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne -1978335189) {
+        Write-Error "winget install failed (exit code $LASTEXITCODE)."
+        exit 1
     }
     Write-Host "Tool installed." -ForegroundColor Green
 }
 
 # Verify tool is available
 if (-not (Get-Command devopsmigration -ErrorAction SilentlyContinue)) {
-    $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-    if (-not (Get-Command devopsmigration -ErrorAction SilentlyContinue)) {
-        Write-Error "'devopsmigration' command not found. Ensure ~/.dotnet/tools is on your PATH."
-        exit 1
-    }
+    Write-Error "'devopsmigration' command not found. Open a new terminal so the PATH update takes effect, then re-run."
+    exit 1
 }
 
 # ── 2. Validate config file ───────────────────────────────────────────────────
@@ -65,15 +60,15 @@ if (-not (Test-Path $ConfigFile)) {
 }
 
 $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-$sourceOrg  = $config.MigrationTools.Endpoints.Source.Organisation
+$sourceOrg  = $config.MigrationTools.Endpoints.Source.Collection
 $sourceProj = $config.MigrationTools.Endpoints.Source.Project
-$targetOrg  = $config.MigrationTools.Endpoints.Target.Organisation
+$targetOrg  = $config.MigrationTools.Endpoints.Target.Collection
 $targetProj = $config.MigrationTools.Endpoints.Target.Project
 $sourcePat  = $config.MigrationTools.Endpoints.Source.Authentication.AccessToken
 $targetPat  = $config.MigrationTools.Endpoints.Target.Authentication.AccessToken
 
-if ($sourceOrg -like "*SOURCE*" -or $sourcePat -like "*PAT_TOKEN*") {
-    Write-Error "configuration.json still has placeholder values. Update SOURCE/TARGET org, project, and PAT tokens first."
+if ([string]::IsNullOrWhiteSpace($sourceOrg) -or [string]::IsNullOrWhiteSpace($sourcePat)) {
+    Write-Error "configuration.json is missing Collection or AccessToken for Source. Update the config first."
     exit 1
 }
 
@@ -86,7 +81,8 @@ function Test-AdoConnection {
     $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$Pat"))
     $url = "$OrgUrl$Project/_apis/wit/workitemtypes?api-version=7.1"
     try {
-        $response = Invoke-RestMethod -Uri $url -Headers @{ Authorization = "Basic $b64" } -Method Get -TimeoutSec 15
+        $raw = Invoke-RestMethod -Uri $url -Headers @{ Authorization = "Basic $b64" } -Method Get -TimeoutSec 15
+        $response = if ($raw -is [string]) { $raw | ConvertFrom-Json -AsHashtable } else { $raw }
         Write-Host "$Label connection OK ($($response.count) work item types found)" -ForegroundColor Green
     }
     catch {
@@ -115,8 +111,9 @@ New-Item -ItemType Directory -Force -Path ".\logs" | Out-Null
 Write-Host "`n=== Starting Migration ===" -ForegroundColor Cyan
 
 if ($DryRun) {
-    Write-Host "DRY-RUN mode: validating config only (no changes will be made)`n" -ForegroundColor Yellow
-    devopsmigration execute --config $ConfigFile --dryRun
+    Write-Host "DRY-RUN mode: config and connection validation complete. No migration command was executed." -ForegroundColor Yellow
+    Write-Host "NOTE: devopsmigration v16.3.3 'execute' does not support a --dryRun flag." -ForegroundColor Yellow
+    exit 0
 } else {
     Write-Host "LIVE mode: migrating work items and area/iteration paths`n" -ForegroundColor Red
     $confirm = Read-Host "Type 'yes' to proceed"
@@ -127,4 +124,4 @@ if ($DryRun) {
     devopsmigration execute --config $ConfigFile
 }
 
-Write-Host "`nMigration complete. Check .\logs\ for the full log." -ForegroundColor Green
+Write-Host "`nMigration complete." -ForegroundColor Green
